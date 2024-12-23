@@ -1,0 +1,303 @@
+---
+title: "Analisis de Items"
+author: "Juan Manuel Mimiaga Morales"
+date: "2024-10-09"
+fontsize: 12pt
+lang: es-MX
+output:
+  word_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(readxl)
+library(ltm)
+library(ggplot2)
+library(knitr)
+library(gridExtra)
+library(modeest)
+library(psych)
+data <- read_excel("C:/Users/UNISA_96/Downloads/Urinario.xlsx")
+respuestas <- data[, -1]  # Eliminamos la columna de "Matrícula"
+irt_model <- ltm(respuestas ~ z1, IRT.param = TRUE)
+descriptiva <- read_excel("C:/Users/UNISA_96/Downloads/CAL_SN (1).xlsx")
+options(scipen = 999)
+```
+
+El presente documento tiene como objetivo presentar información relevante sobre los reactivos utilizados en el examen del módulo XXXX. Este análisis se basa en el modelo de Ojiva Normal de dos parámetros, el cual se emplea en la evaluación de ítems para obtener métricas significativas que permiten comprender la efectividad y el rendimiento de cada reactivo en la prueba. A continuación, se detallan las tres cuestiones principales que se calculan utilizando este modelo:
+
+## Estadística descriptiva de la prueba
+
+A continuación se presentan algunos datos datos descriptivos del desempeño de la evaluación:\
+
+### Cantidad de respuestas por opción:
+
+```{r, echo= FALSE}
+# Filtrar las columnas desde la 5ta en adelante
+data_preguntas <- descriptiva[, 6:ncol(descriptiva)]
+
+# Inicializar un data frame para almacenar los resultados
+resumen <- data.frame(
+  Pregunta = names(data_preguntas),
+  A = numeric(length(data_preguntas)),
+  B = numeric(length(data_preguntas)),
+  C = numeric(length(data_preguntas)),
+  Prop_A = numeric(length(data_preguntas)),
+  Prop_B = numeric(length(data_preguntas)),
+  Prop_C = numeric(length(data_preguntas))
+)
+
+# Contar frecuencias de respuestas (A, B, C) por cada columna y calcular proporciones
+total_respuestas <- lapply(data_preguntas, function(columna) {
+  table(factor(columna, levels = c("A", "B", "C")))
+})
+
+total_respuestas_prop <- lapply(data_preguntas, function(columna) {
+  prop.table(table(factor(columna, levels = c("A", "B", "C")))) * 100 # Convertir a porcentaje
+})
+
+# Llenar el data frame con los conteos y proporciones
+for (i in seq_along(total_respuestas)) {
+  resumen$A[i] <- total_respuestas[[i]]["A"]
+  resumen$B[i] <- total_respuestas[[i]]["B"]
+  resumen$C[i] <- total_respuestas[[i]]["C"]
+  resumen$Prop_A[i] <- total_respuestas_prop[[i]]["A"]
+  resumen$Prop_B[i] <- total_respuestas_prop[[i]]["B"]
+  resumen$Prop_C[i] <- total_respuestas_prop[[i]]["C"]
+}
+
+# Formatear las proporciones como porcentaje con dos decimales
+resumen$Prop_A <- sprintf("%.2f%%", resumen$Prop_A)
+resumen$Prop_B <- sprintf("%.2f%%", resumen$Prop_B)
+resumen$Prop_C <- sprintf("%.2f%%", resumen$Prop_C)
+
+# Mostrar los resultados como un cuadro
+kable(resumen, caption = "Frecuencias y proporciones de respuestas por pregunta")
+```
+
+### Desempeño de los alumnos en la prueba: 
+```{r, echo= FALSE}
+# Estadística descriptiva para la columna "Calificacion"
+calificaciones <- descriptiva$Calificación
+estadisticas <- data.frame(
+  Metrica = c("Máximo", "Mínimo", "Media", "Desviación Estándar", "Moda"),
+  Valor = c(
+    max(calificaciones, na.rm = TRUE),
+    min(calificaciones, na.rm = TRUE),
+    mean(calificaciones, na.rm = TRUE),
+    sd(calificaciones, na.rm = TRUE),
+    mfv(calificaciones)[1]
+  )
+)
+
+# Mostrar los resultados como cuadros
+list(
+  "Estadísticas descriptivas de Calificación" = kable(estadisticas, caption = "Estadísticas descriptivas de la columna 'Calificación'")
+)
+
+# Estadística descriptiva para la columna "Correctas"
+correctas <- descriptiva$Correctas
+estadisticasc <- data.frame(
+  Metrica = c("Máximo", "Mínimo", "Media", "Desviación Estándar", "Moda"),
+  Valor = c(
+    max(correctas, na.rm = TRUE),
+    min(correctas, na.rm = TRUE),
+    mean(correctas, na.rm = TRUE),
+    sd(correctas, na.rm = TRUE),
+    mfv(correctas)[1]
+  )
+)
+
+# Mostrar los resultados como cuadros
+list(
+  "Estadísticas descriptivas de Respuestas Correctas" = kable(estadisticasc, caption = "Estadísticas descriptivas de la columna 'Correctas'")
+)
+```
+### Análisis de items de pruebas:
+Alfa de Cronbach
+El Alfa de Cronbach nos da una medida de la consistencia interna que tienen los reactivos que forman una escala. Si esta medida es alta, suponemos tener evidencia de la homogeneidad de dicha escala, es decir, que los ítems están “apuntando” en la misma dirección.
+
+Por esta razón, el Alfa de Cronbach suele interpretarse como una medida de unidimensionalidad de una escala, por tanto, de que estamos midiendo de manera consistente algo con ella. Esto es, asumimos que nuestra escala es Tau equivalente o esencialmente Tau equivalente.
+```{r, echo= FALSE}
+alfa <- alpha(respuestas)
+alfa
+
+```
+1.  **Dificultad**\
+    La dificultad de un ítem se refiere a la proporción de estudiantes que responden correctamente a la pregunta. Este parámetro es esencial para determinar si un ítem es adecuado para el nivel de habilidad de los evaluados. Un índice de dificultad alto indica que la mayoría de los estudiantes respondieron correctamente, lo que sugiere que el ítem puede ser demasiado fácil. Por otro lado, un índice bajo sugiere que el ítem es difícil y podría no ser adecuado para la evaluación del conocimiento que se desea medir.
+
+2.  **Discriminación**\
+    La capacidad de discriminación de un ítem se refiere a su habilidad para diferenciar entre los estudiantes que tienen un alto nivel de conocimiento y aquellos que tienen un bajo nivel. Este índice es fundamental para evaluar la efectividad de un ítem en la identificación de las competencias del estudiante. Un ítem con alta discriminación será capaz de distinguir claramente entre los estudiantes más capaces y los que tienen menos conocimiento, mientras que un ítem con baja discriminación no proporcionará esta diferenciación.
+
+3.  **Probabilidad de Responder Correctamente**\
+    Este parámetro indica la probabilidad de que un estudiante con una determinada habilidad responda correctamente al ítem. Se utiliza para predecir el rendimiento en el examen y para identificar los reactivos que son más efectivos en la evaluación del conocimiento. Un índice de probabilidad alto sugiere que el ítem es apropiado para el nivel de habilidad esperado, mientras que un índice bajo podría indicar que el ítem es inapropiado o que no está alineado con el contenido que se evalúa.
+
+Este análisis permite realizar ajustes en los reactivos del examen, optimizando así la evaluación y asegurando que sea un reflejo fiel del conocimiento y habilidades de los estudiantes. Además, los resultados obtenidos pueden ser utilizados para mejorar futuros exámenes y la preparación académica de los estudiantes.
+
+```{r, echo=FALSE}
+# Obtener parámetros de discriminación (a) y dificultad (b)
+params <- coef(irt_model)
+
+# Mostrar los parámetros
+kable(params, caption = "Parámetros de discriminación y dificultad por ítem", col.names = c("Discriminación (a)", "Dificultad (b)"))
+```
+
+## Graficando las Curvas de Características
+
+Las curvas de características del ítem (CCI) son representaciones gráficas que permiten visualizar la relación entre la dificultad y la probabilidad de responder correctamente a un reactivo específico. Estas curvas son herramientas valiosas en el análisis de pruebas, ya que proporcionan información clara sobre el desempeño esperado de los estudiantes en función de la dificultad del item
+
+#### Importancia de las Curvas de Características
+
+Al graficar las CCI, podemos observar dos aspectos importantes:
+
+-   **Comparación entre Ítems**: Es posible comparar varias curvas de diferentes reactivos en el mismo gráfico para evaluar cuál ítem es más efectivo en la evaluación de habilidades específicas.
+
+-   **Identificación de Problemas**: Las curvas que presentan comportamientos inusuales pueden indicar problemas con el ítem, como una formulación poco clara o un contenido que no se alinea con el objetivo de aprendizaje.
+
+<!-- -->
+
+-   **Curva**:
+
+    -   La curva se eleva suavemente desde el extremo izquierdo (baja habilidad) hasta el extremo derecho (alta habilidad).
+
+    -   Un ítem fácil puede mostrar una curva que alcanza valores altos de probabilidad rápidamente, mientras que un ítem difícil mostrará una curva que se eleva más lentamente.
+
+```{r, include=FALSE}
+# Función para graficar la CCI de un ítem específico
+plot_cci <- function(item) {
+  # Asegurarse de que el ítem esté dentro de los límites
+  if (item < 1 || item > nrow(params)) {
+    stop("Ítem fuera de límites. Asegúrate de que el índice esté entre 1 y ", nrow(params))
+  }
+  
+  # Generar un rango de valores theta
+  theta <- seq(-3, 3, length.out = 100)
+  
+  # Obtener los parámetros de discriminación (a) y dificultad (b) del ítem
+  a <- params[item, "Dscrmn"]
+  b <- params[item, "Dffclt"]
+  
+  # Calcular la probabilidad de respuesta correcta usando la función logística
+  probabilidad_correcta <- 1 / (1 + exp(-a * (theta - b)))
+  
+  # Graficar la Curva Característica del Ítem usando ggplot2
+  p <- ggplot(data.frame(theta, probabilidad_correcta), aes(x = theta, y = probabilidad_correcta)) +
+    geom_line() +
+    ggtitle(paste("Curva Característica del Ítem", item)) +
+    xlab("Dificultad") +
+    ylab("Probabilidad de Respuesta Correcta") +
+    ylim(0,1)+
+    theme_minimal() +
+    theme(
+      plot.title = element_text(size = 8, face = "bold"),    # Tamaño del título de la curva
+      axis.title.x = element_text(size = 8),                 # Tamaño del título del eje X
+      axis.title.y = element_text(size = 7),                 # Tamaño del título del eje Y
+      axis.text = element_text(size = 7)                     # Tamaño del texto de los ejes
+    )
+  
+  return(p)
+}
+```
+
+```{r,}
+# Número total de ítems
+n_items <- nrow(params)
+
+# Crear gráficos de CCI en grupos de 4 ítems
+for (i in seq(1, n_items, by = 4)) {
+  # Crear una lista para almacenar hasta 4 gráficos
+  plots <- list()
+  
+  # Graficar hasta 4 ítems o los que queden
+  for (j in i:min(i + 3, n_items)) {
+    plots[[length(plots) + 1]] <- plot_cci(j)
+  }
+  
+  # Mostrar los gráficos juntos en una misma página (4 gráficos por página)
+  do.call(grid.arrange, c(plots, ncol = 2, nrow = 2))
+}
+```
+
+## Graficando la información del item
+
+El análisis de la información del ítem se puede visualizar mediante gráficas que muestran la relación entre la habilidad latente del estudiante (θ) y la información que cada ítem proporciona. Esta representación es crucial para comprender cómo varía la efectividad de un ítem a diferentes niveles de habilidad.
+
+#### Conceptos Clave
+
+1.  **Habilidad Latente (θ)**: Este parámetro representa el nivel de habilidad del estudiante. Los valores de θ pueden variar, generalmente, entre -3 y 3, donde valores más altos indican una mayor habilidad.
+
+2.  **Información del Ítem**: Este parámetro mide cuánta información proporciona un ítem sobre la habilidad del estudiante. Se calcula a partir de los parámetros de discriminación (a) y dificultad (b) del ítem, y se espera que varíe a lo largo de diferentes niveles de habilidad.
+
+3.  **Curva**:
+
+    -   La curva representará cómo varía la información del ítem en función de la habilidad del estudiante. Se espera que la información del ítem aumente hasta un punto máximo y luego disminuya, mostrando así la efectividad del ítem a diferentes niveles de habilidad.
+
+```{r, include=FALSE}
+# Función para calcular la información del ítem
+calc_info_item <- function(a, b, theta) {
+  p <- calc_probabilidad(a, b, theta)
+  info <- a^2 * p * (1 - p)
+  return(info)
+}
+
+# Función para calcular la probabilidad de respuesta correcta
+calc_probabilidad <- function(a, b, theta) {
+  1 / (1 + exp(-a * (theta - b)))
+}
+
+
+# Función para graficar la Información del Ítem (IFI)
+plot_ifi <- function(item) {
+  # Asegurarse de que el ítem esté dentro de los límites
+  if (item < 1 || item > nrow(params)) {
+    stop("Ítem fuera de límites. Asegúrate de que el índice esté entre 1 y ", nrow(params))
+  }
+  
+  # Generar un rango de valores theta
+  theta <- seq(-3, 3, length.out = 100)
+  
+  # Obtener los parámetros de discriminación (a) y dificultad (b) del ítem
+  a <- params[item, "Dscrmn"]
+  b <- params[item, "Dffclt"]
+  
+  # Calcular la información del ítem
+  info_item <- calc_info_item(a, b, theta)
+  
+  # Graficar la función de información del ítem
+  p <- ggplot(data.frame(theta, info_item), aes(x = theta, y = info_item)) +
+    geom_line() +
+    ggtitle(paste("Función de Información del Ítem", item)) +
+    ylim(0,1)+
+    xlab("Habilidad Latente (Theta)") +
+    ylab("Información del Ítem") +
+    theme_minimal() +
+    theme(
+      plot.title = element_text(size = 8, face = "bold"),    # Tamaño del título de la curva
+      axis.title.x = element_text(size = 8),                 # Tamaño del título del eje X
+      axis.title.y = element_text(size = 7),                 # Tamaño del título del eje Y
+      axis.text = element_text(size = 7)                     # Tamaño del texto de los ejes
+    )
+  
+  return(p)
+}
+```
+
+```{r,}
+# Número total de ítems
+n_items2 <- nrow(params)
+
+# Crear gráficos de CCI en grupos de 4 ítems
+for (i in seq(1, n_items2, by = 4)) {
+  # Crear una lista para almacenar hasta 4 gráficos
+  plots2 <- list()
+  
+  # Graficar hasta 4 ítems o los que queden
+  for (j in i:min(i + 3, n_items2)) {
+    plots2[[length(plots2) + 1]] <- plot_ifi(j)
+  }
+  
+  # Mostrar los gráficos juntos en una misma página (4 gráficos por página)
+  do.call(grid.arrange, c(plots2, ncol = 2, nrow = 2))
+}
+```
